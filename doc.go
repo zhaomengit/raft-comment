@@ -25,10 +25,12 @@ A simple example application, _raftexample_, is also available to help illustrat
 how to use this package in practice:
 https://github.com/coreos/etcd/tree/master/contrib/raftexample
 
-Usage
+Usage 使用
 
 The primary object in raft is a Node. You either start a Node from scratch
 using raft.StartNode or start a Node from some initial state using raft.RestartNode.
+
+在raft中首要的对象是节点,你可以使用raft.StartNode来从头开始一个节点,也可以使用raft.RestartNode来从其他初始化状态中启动
 
 To start a node from scratch:
 
@@ -78,7 +80,8 @@ it contains. These steps may be performed in parallel, except as noted in step
 not empty. Note that when writing an Entry with Index i, any
 previously-persisted entries with Index >= i must be discarded.
 
-1. 把HardState,Entries和Snapshot不为空的话就写到持久化存储中
+1. 如果HardState,Entries和Snapshot不为空的话就写到持久化存储中,注意: 写一个索引为i的条目的时候,任何先前持久化存储的条目大于i的部分必须舍弃
+(这个地方为什么这样做参考下raft的论文, 必须和领导人日志保持一致)
 
 2. Send all Messages to the nodes named in the To field. It is important that
 no messages be sent until the latest HardState has been persisted to disk,
@@ -89,10 +92,20 @@ followers (as explained at section 10.2.1 in Raft thesis). If any Message has ty
 MsgSnap, call Node.ReportSnapshot() after it has been sent (these messages may be
 large).
 
+发送所有的Messages到node的To字段, 直到最新的HardState被保存到磁盘才可以发送消息
+and all Entries written by any previous Ready batch (Messages may be sent while
+entries from the same batch are being persisted). ????
+为了减少I/O延迟,可以让领导人和跟随者并行写入磁盘,如果Message有MsgSnap类型的消息,在发送完成后调用Node.ReportSnapshot()
+
+
+
 Note: Marshalling messages is not thread-safe; it is important that you
 make sure that no new entries are persisted while marshalling.
 The easiest way to achieve this is to serialise the messages directly inside
 your main raft loop.
+
+格式化消息不是线程安全的,在格式化消息的时候确保没有新的日志条目被持久化
+最简单的方式是序列化这些消息在主raft循环中
 
 3. Apply Snapshot (if any) and CommittedEntries to the state machine.
 If any committed Entry has Type EntryConfChange, call Node.ApplyConfChange()
@@ -102,9 +115,15 @@ by setting the NodeID field to zero before calling ApplyConfChange
 must be based solely on the state machine and not external information such as
 the observed health of the node).
 
+如果有必要,应用Snapshot和CommittedEntries到状态机中
+如果提交的日志条目有EntryConfChange,调用ode.ApplyConfChange()来应用到节点,在调用ApplyConfChange之前设置NodeID属性为0
+可以使是配置改变取消
+
 4. Call Node.Advance() to signal readiness for the next batch of updates.
 This may be done at any time after step 1, although all updates must be processed
 in the order they were returned by Ready.
+
+调用Node.Advance()通知下次的批量更新,step 1完成后的任意时间都可以调用
 
 Second, all persisted log entries must be made available via an
 implementation of the Storage interface. The provided MemoryStorage
@@ -150,6 +169,8 @@ The total state machine handling loop will look something like this:
 
 To propose changes to the state machine from your node take your application
 data, serialize it into a byte slice and call:
+
+应用data到状态机
 
 	n.Propose(ctx, data)
 
