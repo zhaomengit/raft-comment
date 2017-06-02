@@ -20,10 +20,12 @@ import pb "github.com/coreos/etcd/raft/raftpb"
 // Note that unstable.offset may be less than the highest log
 // position in storage; this means that the next write to storage
 // might need to truncate the log before persisting unstable.entries.
+// unstable.entries[i] 代表raft日志的位置是: i+unstable.offset
 type unstable struct {
 	// the incoming unstable snapshot, if any.
 	snapshot *pb.Snapshot
 	// all entries that have not yet been written to storage.
+	// 还没有写入到storage的日志
 	entries []pb.Entry
 	offset  uint64
 
@@ -54,6 +56,8 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 // maybeTerm returns the term of the entry at index i, if there
 // is any.
 func (u *unstable) maybeTerm(i uint64) (uint64, bool) {
+
+	// 查找的索引小于offset,需要去snapshot中查找
 	if i < u.offset {
 		if u.snapshot == nil {
 			return 0, false
@@ -94,6 +98,7 @@ func (u *unstable) stableSnapTo(i uint64) {
 	}
 }
 
+// 把Snapshot设置放入unstable
 func (u *unstable) restore(s pb.Snapshot) {
 	u.offset = s.Metadata.Index + 1
 	u.entries = nil
@@ -106,16 +111,19 @@ func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	case after == u.offset+uint64(len(u.entries)):
 		// after is the next index in the u.entries
 		// directly append
+		// 正好是要追加的下个日志的索引,就直接追加
 		u.entries = append(u.entries, ents...)
 	case after <= u.offset:
 		u.logger.Infof("replace the unstable entries from index %d", after)
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries
+		// 需要截断
 		u.offset = after
 		u.entries = ents
 	default:
 		// truncate to after and copy to u.entries
 		// then append
+		// 截断到after,然后
 		u.logger.Infof("truncate the unstable entries before index %d", after)
 		u.entries = append([]pb.Entry{}, u.slice(u.offset, after)...)
 		u.entries = append(u.entries, ents...)
@@ -128,6 +136,7 @@ func (u *unstable) slice(lo uint64, hi uint64) []pb.Entry {
 }
 
 // u.offset <= lo <= hi <= u.offset+len(u.offset)
+// 检查是否越界
 func (u *unstable) mustCheckOutOfBounds(lo, hi uint64) {
 	if lo > hi {
 		u.logger.Panicf("invalid unstable.slice %d > %d", lo, hi)

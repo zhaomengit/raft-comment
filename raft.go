@@ -93,6 +93,7 @@ var globalRand = &lockedRand{
 type CampaignType string
 
 // StateType represents the role of a node in a cluster.
+// StateType代表Node在集群中的角色
 type StateType uint64
 
 var stmap = [...]string{
