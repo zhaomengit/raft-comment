@@ -46,6 +46,7 @@ type ReadOnlyOption int
 const (
 	// ReadOnlySafe guarantees the linearizability of the read only request by
 	// communicating with the quorum. It is the default and suggested option.
+	// ReadOnlySafe保证线性化访问
 	ReadOnlySafe ReadOnlyOption = iota
 	// ReadOnlyLeaseBased ensures linearizability of the read only request by
 	// relying on the leader lease. It can be affected by clock drift.
@@ -333,6 +334,7 @@ func (r *raft) hardState() pb.HardState {
 	}
 }
 
+// 计算法定人数,需要超过法定人数才可以当选
 func (r *raft) quorum() int { return len(r.prs)/2 + 1 }
 
 func (r *raft) nodes() []uint64 {
@@ -1209,10 +1211,12 @@ func (r *raft) loadState(state pb.HardState) {
 // pastElectionTimeout returns true iff r.electionElapsed is greater
 // than or equal to the randomized election timeout in
 // [electiontimeout, 2 * electiontimeout - 1].
+// 选举超时, 时间已经超过生成随机超时间
 func (r *raft) pastElectionTimeout() bool {
 	return r.electionElapsed >= r.randomizedElectionTimeout
 }
 
+// 设置选举超时时间 [electionTimeout, 2 * electiontimeout - 1]
 func (r *raft) resetRandomizedElectionTimeout() {
 	r.randomizedElectionTimeout = r.electionTimeout + globalRand.Intn(r.electionTimeout)
 }
@@ -1221,6 +1225,7 @@ func (r *raft) resetRandomizedElectionTimeout() {
 // the view of the local raft state machine. Otherwise, it returns
 // false.
 // checkQuorumActive also resets all RecentActive to false.
+// 检查节点有多少是存活的
 func (r *raft) checkQuorumActive() bool {
 	var act int
 
@@ -1240,14 +1245,17 @@ func (r *raft) checkQuorumActive() bool {
 	return act >= r.quorum()
 }
 
+// 发送超时信息
 func (r *raft) sendTimeoutNow(to uint64) {
 	r.send(pb.Message{To: to, Type: pb.MsgTimeoutNow})
 }
 
+// 终止领导人转换
 func (r *raft) abortLeaderTransfer() {
 	r.leadTransferee = None
 }
 
+// 统计多少个PendingConf
 func numOfPendingConf(ents []pb.Entry) int {
 	n := 0
 	for i := range ents {

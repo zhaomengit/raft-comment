@@ -63,6 +63,8 @@ type Progress struct {
 	// RecentActive is true if the progress is recently active. Receiving any messages
 	// from the corresponding follower indicates the progress is active.
 	// RecentActive can be reset to false after an election timeout.
+	// RecentActive为True,如果progress最新激活, 从跟随者中接收到任何消息都表示进程为激活状态
+	// 在选举超时后,RecentActive能够被设置为false
 	RecentActive bool
 
 	// inflights is a sliding window for the inflight messages.
